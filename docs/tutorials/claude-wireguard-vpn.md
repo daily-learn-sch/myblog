@@ -1,5 +1,7 @@
 # 给 Claude 配一条美国专线：WireGuard 分流 VPN 搭建全教程
 
+> ⚠️ **v1.4 状态更新（2026-10-09）**：WireGuard 路线已暂停使用。2026-10-08 起，运营商 DPI 连续两次精准拦截 WireGuard 握手（先是 UDP 51820，后是 UDP 443，换端口只续命约 18 小时）；udp2raw 四种伪装模式（faketcp/UDP/ICMP/easy-faketcp）全部试过，均告失败，已从 VPS 彻底移除。**当前主力方案是 VLESS+Reality**（见第 11 节），WireGuard 仅保留作闲置备份。下面第 1–9 节的 WireGuard 搭建步骤依然有效，可作为备用路线参考；第 10 节 udp2raw 已作废，请勿再按其操作。
+
 > 适用人群：Claude 账号频繁被风控、需要稳定美国 IP，但又不想影响现有代理（v2ray / Clash 等）的开发者。
 > 效果：只有 Claude 相关流量走美国 VPS，其他所有流量（包括你现有的代理）原样不动。
 > 成本：约 $2.62/月（GCP 赠金抵扣后实付 $0）；若按第 2 节切到 Standard Tier，出站前 200 GiB/月免费，基本可降到 $0。
@@ -283,7 +285,9 @@ netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 46 4
 - 公钥（`.pub`）可以公开，它只能用来"认出"你，不能用来冒充你。
 - VPS 的 SSH 建议禁用密码登录、只留密钥（GCP 默认即如此）。
 
-## 10. 伪装层：用 udp2raw 把 WireGuard 藏进 TCP 443（2026-10-09 新增）
+## 10. 伪装层：udp2raw（⚠️ 已作废，2026-10-09 晚）
+
+> **本节已作废**：udp2raw 四种模式（TCP faketcp、UDP、ICMP、easy-faketcp）全部实测失败——DPI 掐 UDP 回程、内核对伪造 TCP 发 RST、ICMP 握手走不通。已从 VPS 彻底移除（`systemctl disable udp2raw` + 删二进制 + 删 service 文件）。保留下文仅作踩坑记录，请勿再按此操作。
 
 **背景**：2026-10-09 上午，Mac（约 10:30）和 Windows（约 09:55）两端同时握手失败。服务端 `tcpdump` 显示每个握手请求都有响应发出，但客户端永远收不到——**UDP 443 的回程也被掐了**。443 是 QUIC/HTTPS 的端口，不可能按端口封还不误伤别人，说明链路已经能认出 WireGuard 本身（握手包的字节特征，或这条 7×24 小时的 UDP 流被盯上了）。教训：**再换 UDP 端口只是续命**（51820→443 只活了 18 小时）。
 
@@ -399,4 +403,21 @@ sudo timeout 20 tcpdump -i any tcp port 443 -c 6
 
 ---
 
-*教程 v1.3，2026-10-09。环境：GCP us-west1 Debian 13 + WireGuard，客户端 macOS / Windows。v1.3 修订：新增第 10 节 udp2raw 伪装层（UDP 443 回程于 2026-10-09 上午也被拦截，换端口只能续命约 18 小时，udp2raw 把 WireGuard 藏进 TCP 443）；客户端 Endpoint 改为经由本机 udp2raw（127.0.0.1:51820）并加 MTU 1280。v1.2 修订：WireGuard 端口由 51820 改为 UDP 443（51820 回程曾被运营商拦截）、新增 Windows IPv6 排错、费用表述修正为截图累计、Standard Tier 改为可选步骤。如有问题欢迎留言。*
+## 11. 当前主力方案：VLESS+Reality（2026-10-09 起）
+
+WireGuard 被 DPI 连续拦截后，切到 VPS 上已有的 sing-box 的 **VLESS+Reality**（TCP 38480），实测延迟约 296ms（中国→俄勒冈，正常水平）。
+
+**为什么选它**：
+- Reality 伪装成正常 TLS 流量，没有 WireGuard 那种可识别的握手特征，DPI 难以针对
+- sing-box 本来就在 VPS 上跑着，零新增成本
+- 客户端用 v2rayN / Nekoray / Streisand 等，导入链接即用
+
+**分流原则不变**：只让 Claude 相关流量走这条专线，其他流量（包括原有 v2ray 代理）原样不动。具体做法是在客户端做路由规则，只把 `anthropic.com` 相关域名和 API IP 指向 VLESS 出站。
+
+**WireGuard 的去留**：`wg0`（UDP 51820）保持 active 作闲置备份，配置文件保留。万一哪天 VLESS 也出问题，WireGuard 随时可启用——毕竟它的分流配置和密钥都在，只是当前不走流量。
+
+**一个未解的疑问**：之前 Claude 账号被封时，用的可能就是这台 VPS 的 IP（`34.83.76.40`）。如果封号是绑 IP 的，换协议也救不了，届时得换一台 VPS。这是下一步要验证的。
+
+---
+
+*教程 v1.4，2026-10-12。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
