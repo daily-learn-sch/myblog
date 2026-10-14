@@ -18,6 +18,7 @@ export default defineConfig({
           items: [
             { text: '个人网站全自动发布：GitHub + R2', link: '/tutorials/ailearn-auto-publish' },
             { text: 'Claude 专线 VPN 搭建（WireGuard）', link: '/tutorials/claude-wireguard-vpn' },
+            { text: 'IdeaVim 配置与快速上手', link: '/tutorials/ideavim-setup-guide' },
           ],
         },
       ],
