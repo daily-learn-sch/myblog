@@ -195,7 +195,7 @@ ollama list
 本机安装时官方源约 **380KB/s**，改走 ModelScope GGUF 后正常。注意：
 
 1. **只适合「单文件 GGUF」仓库**；分片 GGUF 当前不支持这样拉。
-2. ModelScope 拉下来的模型 **有时缺正确对话模板**（例如变成裸 `{{ .Prompt }}`），回答会怪——必须用 Modelfile 套上官方 TEMPLATE。
+2. ModelScope 拉下来的模型 **有时缺正确对话模板**（例如变成裸模板 <code v-pre>{{ .Prompt }}</code>），回答会怪——必须用 Modelfile 套上官方 TEMPLATE。
 
 #### 5.2.1 拉取并起短名
 
