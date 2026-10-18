@@ -5,8 +5,8 @@ export default defineConfig({
   title: "小海的技术笔记",
   description: "Java 开发者的实战教程：VPN、云服务、自动化",
   lang: 'zh-CN',
-  themeConfig: {
-    nav: [
+  ignoreDeadLinks: [/^http:\/\/localhost/],
+  themeConfig: {    nav: [
       { text: '首页', link: '/' },
       { text: '教程', link: '/tutorials/' },
       { text: '关于', link: '/about' },
