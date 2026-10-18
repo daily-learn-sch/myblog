@@ -6,3 +6,4 @@
 - [Claude 专线 VPN 搭建（WireGuard 分流）](./claude-wireguard-vpn.md)
 - [IdeaVim 配置与快速上手](./ideavim-setup-guide.md)
 - [VPN / 代理工具科普：Tailscale、WireGuard、V2Ray、Clash、EasyConnect、Shadowsocks](./vpn-tools-guide.md)
+- [Mac 本地大模型搭建（Ollama + Open WebUI）](./ollama-openwebui-setup-guide.md)
