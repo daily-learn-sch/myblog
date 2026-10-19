@@ -590,9 +590,100 @@ ollama list
 
 ---
 
-## 12. 资源占用与省电
+## 12. 启停、资源释放与日常管理
 
-### 12.1 磁盘（本机 2026-10-18 量级）
+装好之后日常只有两种状态：**用的时候拉起来，不用的时候释放资源**。释放分四个层级，从轻到重按需选。
+
+### 12.1 启停速查表
+
+| 组件 | 启动 | 停止 | 查状态 |
+|---|---|---|---|
+| Ollama | `brew services start ollama` | `brew services stop ollama` | `brew services list \| grep ollama`；`curl localhost:11434` |
+| Open WebUI | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.xiaohai.open-webui.plist` | `launchctl bootout gui/$(id -u)/com.xiaohai.open-webui` | `launchctl print gui/$(id -u)/com.xiaohai.open-webui \| grep state`；`curl -o /dev/null -s -w '%{http_code}\n' localhost:3000` |
+| 已加载模型 | `ollama run qwen2.5:7b </dev/null`（触发加载） | `ollama stop qwen2.5:7b`（只卸载模型，服务还在） | `ollama ps` |
+
+> `id -u` 输出你的用户 ID（如 501），`launchctl` 的 `gui/<uid>` 域必须用它，不能简写。
+
+### 12.2 释放资源的四个层级（从轻到重）
+
+**L1 · 只卸载模型（最轻，日常推荐）**
+
+模型推理时占约 5–6GB 内存，退出对话不会自动释放。用完后：
+
+```bash
+ollama ps                 # 看当前加载了哪些模型
+ollama stop qwen2.5:7b    # 卸载这一个
+ollama stop deepseek-r1:8b
+```
+
+Ollama 服务本身还在（空载几乎不占资源），下次 `ollama run` 或在网页里点一下模型会自动重新加载。**这是日常"释放资源"的首选。**
+
+**L2 · 停掉 Ollama 服务**
+
+```bash
+brew services stop ollama
+```
+
+所有已加载模型退出内存，11434 端口关闭。想用时 `brew services start ollama` 恢复。注意：这只是停掉本次运行，plist 还在，**重启 Mac 后 Ollama 依然会自启**（通常这正是你想要的）。
+
+**L3 · 停掉 Open WebUI**
+
+```bash
+launchctl bootout gui/$(id -u)/com.xiaohai.open-webui
+```
+
+释放 WebUI 的 Python 进程（约几百 MB）。同理，plist 还在的话重启后会自启。
+
+**L4 · 彻底取消开机自启（出差 / 长期不用）**
+
+```bash
+mkdir -p ~/local-llm/backup-plist
+
+# Ollama：停服务 + 把 plist 挪走（不删除，方便恢复）
+brew services stop ollama
+mv ~/Library/LaunchAgents/sh.brew.ollama.plist ~/local-llm/backup-plist/
+
+# Open WebUI：停服务 + 挪走 plist
+launchctl bootout gui/$(id -u)/com.xiaohai.open-webui
+mv ~/Library/LaunchAgents/com.xiaohai.open-webui.plist ~/local-llm/backup-plist/
+```
+
+恢复自启：把 plist 移回去，再 `brew services start ollama` / `launchctl bootstrap …`。
+
+> 记住这个区别：**L1–L3 是"本次生效、重启恢复"；只有 L4（移出 plist）能阻止下次开机自启。**
+
+### 12.3 一键脚本（可选）
+
+嫌命令长，包两个脚本放 `~/local-llm/`：
+
+**`~/local-llm/llm-stop.sh`**（释放全部资源）：
+
+```bash
+#!/bin/bash
+ollama stop qwen2.5:7b 2>/dev/null
+ollama stop deepseek-r1:8b 2>/dev/null
+brew services stop ollama
+launchctl bootout gui/$(id -u)/com.xiaohai.open-webui 2>/dev/null
+echo "已释放：模型已卸载，Ollama 与 Open WebUI 已停止"
+```
+
+**`~/local-llm/llm-start.sh`**（全部拉起并自检）：
+
+```bash
+#!/bin/bash
+brew services start ollama
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.xiaohai.open-webui.plist 2>/dev/null || \
+  launchctl kickstart -k gui/$(id -u)/com.xiaohai.open-webui
+sleep 3
+curl -s http://localhost:11434 && echo
+curl -o /dev/null -s -w 'WebUI: %{http_code}\n' http://localhost:3000
+```
+
+```bash
+chmod +x ~/local-llm/llm-start.sh ~/local-llm/llm-stop.sh
+```
+
+### 12.4 资源占用量级（本机 2026-10-18）
 
 | 项目 | 约占用 |
 |---|---|
@@ -603,23 +694,11 @@ ollama list
 | `~/local-llm`（数据/向量/日志） | ~0.1 GB+ |
 | **合计** | **约 11–13 GB** |
 
-### 12.2 内存与省电
+### 12.5 笔记本省电建议
 
-- 模型加载后约 **5–6GB**（7B/8B Q4）；不用时释放：
-
-```bash
-brew services stop ollama    # 停止服务，模型退出内存
-# 或仅卸载当前加载的模型（若版本支持）：
-# ollama stop qwen2.5:7b
-```
-
-- 长期不用 WebUI：
-
-```bash
-launchctl bootout gui/$(id -u)/com.xiaohai.open-webui
-```
-
-- 笔记本建议接电再跑大模型；低电量时可先停 Ollama。
+- 模型加载后约 5–6GB（7B/8B Q4）；风扇起飞时先 `ollama ps`，看是不是一次加载了多个模型。
+- 笔记本建议接电再跑大模型；低电量时按 §12.2 的 L1/L2 释放。
+- 只有插电常开的台式场景（比如这台 Mac mini）才适合长期开着自启。
 
 ---
 
