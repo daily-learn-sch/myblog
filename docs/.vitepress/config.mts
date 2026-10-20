@@ -21,6 +21,7 @@ export default defineConfig({
             { text: 'IdeaVim 配置与快速上手', link: '/tutorials/ideavim-setup-guide' },
             { text: 'VPN / 代理工具科普：六个工具一次讲清', link: '/tutorials/vpn-tools-guide' },
             { text: 'Mac 本地大模型搭建（Ollama + Open WebUI）', link: '/tutorials/ollama-openwebui-setup-guide' },
+            { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
           ],
         },
       ],
