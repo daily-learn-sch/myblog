@@ -1,6 +1,7 @@
-# 给 Claude 配一条美国专线：WireGuard 分流 VPN 搭建全教程
+# 给 Claude 配一条美国专线：WireGuard → VLESS → Tailscale 内网代理全记录
 
-> ⚠️ **v1.4 状态更新（2026-10-09）**：WireGuard 路线已暂停使用。2026-10-08 起，运营商 DPI 连续两次精准拦截 WireGuard 握手（先是 UDP 51820，后是 UDP 443，换端口只续命约 18 小时）；udp2raw 四种伪装模式（faketcp/UDP/ICMP/easy-faketcp）全部试过，均告失败，已从 VPS 彻底移除。**当前主力方案是 VLESS+Reality**（见第 11 节），WireGuard 仅保留作闲置备份。下面第 1–9 节的 WireGuard 搭建步骤依然有效，可作为备用路线参考；第 10 节 udp2raw 已作废，请勿再按其操作。
+> ⚠️ **v2.0 状态更新（2026-10-21）**：当前推荐方案是第 12 节的 **Tailscale 内网代理**（2026-10-21 实测落地、自测通过）；VLESS+Reality（第 11 节）降为备用通道；WireGuard 仅保留作闲置备份。**只想落地的读者可以直接跳到第 12 节**——它是自包含的，前几代的演进史对理解"为什么最后是这个方案"有帮助，但不是前置条件。
+> 历史备忘：WireGuard 路线已于 2026-10-09 暂停——运营商 DPI 连续两次精准拦截 WireGuard 握手（先 UDP 51820、后 UDP 443，换端口只续命约 18 小时），udp2raw 四种伪装模式（faketcp/UDP/ICMP/easy-faketcp）全部试过均告失败、已从 VPS 彻底移除。下面第 1–9 节的 WireGuard 搭建步骤依然有效，可作备用路线参考；第 10 节 udp2raw 已作废，请勿再按其操作。
 
 > 适用人群：Claude 账号频繁被风控、需要稳定美国 IP，但又不想影响现有代理（v2ray / Clash 等）的开发者。
 > 效果：只有 Claude 相关流量走美国 VPS，其他所有流量（包括你现有的代理）原样不动。
@@ -420,4 +421,176 @@ WireGuard 被 DPI 连续拦截后，切到 VPS 上已有的 sing-box 的 **VLESS
 
 ---
 
-*教程 v1.4，2026-10-12。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
+## 12. 终章方案：Tailscale 内网代理（2026-10-21 起，当前推荐）
+
+前两代方案的教训可以总结成两句：**WireGuard 输在"被识别后没有退路"**——握手特征固定，DPI 一掐就是彻底断；**VLESS+Reality 能打，但入口开在公网上**，要靠持续维护伪装参数来对抗识别。第三代换个思路：不跟审查者拼伪装，而是**把代理入口搬进一个只有自己的设备能进的私有内网**——公网上根本不存在这个入口，自然也就无从识别、无从针对。
+
+### 12.1 原理
+
+- **Tailscale 先把你的设备组成一个私有内网（tailnet）**：电脑、手机、VPS 登录同一个账号后互为成员，各有一个 `100.x` 开头的内网地址。设备间用 WireGuard 加密互联，**优先点对点直连；直连打不通时自动改走 DERP 中继**（流量封装进 TLS，外观是普通 HTTPS）。这条"自动兜底的退路"，正是当年裸 WireGuard 缺的东西——被掐不再等于断线。
+- **在 VPS 上开一个最朴素的代理，但只监听它的 tailnet 内网地址**。这个端口在公网上不存在：不需要给云防火墙加任何入站规则，端口扫描扫不到，主动探测探不着。能到达它的只有你账号名下的设备——**tailnet 的成员身份本身就是门禁**，所以代理连密码都不需要设。
+- **客户端把代理指向这个内网地址**。只有被指向的应用（Claude Code、Claude 桌面版）走专线，其他流量——包括你原有的 v2ray / Clash——原地不动。分流粒度与前两代完全一致，变的只是"路"的修法。
+- **诚实边界**：本方案**不改变出口 IP**，出去仍然是这台 VPS 的公网 IP。它不解决第 11 节末尾那个未解疑问（封号是否绑 IP），解决的是"路稳不稳、入口藏不藏得住、维护累不累"。真到了必须换 IP 的那天，在新 VPS 上把本节步骤重跑一遍即可——落地过程与具体机器解耦，这是它另一个好处。
+
+### 12.2 落地五步
+
+**第 1 步：所有设备登录同一个 Tailscale 账号（最容易翻车的一步）**
+
+tailnet 是**按账号隔离**的：不同账号就是两个完全独立、互不相通的内网。批错账号的典型症状是：每台设备自己看都"已连接"，但连对方的内网地址**全部超时**。作者亲踩过这个坑——第一次把 VPS 批准进了一个新建的账号，测了半天才发现两边根本不在一个网里。补救不难：VPS 上 `sudo tailscale logout`，再重做第 2 步、这次用对的账号批准。
+
+**第 2 步：VPS 入网**
+
+在 VPS 上执行：
+
+```bash
+# 安装（Debian / Ubuntu）
+curl -fsSL https://tailscale.com/install.sh | sudo sh
+sudo systemctl enable --now tailscaled
+
+# 发起入网：命令行会打印一个授权链接
+sudo tailscale up --hostname=vps-claude --accept-dns=false
+# 用浏览器打开该链接，用与电脑相同的账号批准这台设备
+
+tailscale ip -4    # 记下输出，即 <VPS内网IP>，形如 100.x.x.x
+tailscale status   # 列表里应同时看到你的电脑 —— 看到了才算"同网"
+```
+
+**第 3 步：在 VPS 上起只绑内网的代理（独立 sing-box 实例）**
+
+新建配置 `/etc/sing-box-ts/config.json`（与 VPS 上可能已有的 sing-box 主实例分开，互不影响）：
+
+```json
+{
+  "log": { "level": "info", "output": "/var/log/sing-box-ts/access.log", "timestamp": true },
+  "inbounds": [
+    { "type": "mixed", "tag": "ts-mixed-in", "listen": "<VPS内网IP>", "listen_port": 18080 }
+  ],
+  "outbounds": [ { "type": "direct", "tag": "direct" } ],
+  "route": { "final": "direct" }
+}
+```
+
+再配一个 systemd 服务 `/etc/systemd/system/sing-box-ts.service`（`ExecStart` 里的二进制路径按你的实际安装位置改）：
+
+```ini
+[Unit]
+Description=sing-box tailnet-only proxy
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box-ts/config.json
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo mkdir -p /var/log/sing-box-ts
+sing-box check -c /etc/sing-box-ts/config.json    # 先验配置再启动
+sudo systemctl daemon-reload
+sudo systemctl enable --now sing-box-ts
+ss -tlnp | grep 18080    # 确认监听地址是 <VPS内网IP>，而不是 0.0.0.0
+```
+
+再强调一遍：**不要**给云厂商防火墙为 18080 开任何入站规则。流量是从 `tailscale0` 虚拟网卡进来的，不走公网入站——这是它在公网上"不存在"的原因，开了规则反而破坏设计。
+
+**第 4 步：CLI 客户端（以 Claude Code 为例）**
+
+原理就是给进程设置代理环境变量。以 zsh 函数为例，和你原有的启动命令并存、互不干扰：
+
+```zsh
+cct() {
+  env -u CLAUDE_CODE_USE_VERTEX -u CLOUD_ML_REGION -u ANTHROPIC_VERTEX_PROJECT_ID \
+  HTTP_PROXY=http://<VPS内网IP>:18080 \
+  HTTPS_PROXY=http://<VPS内网IP>:18080 \
+  http_proxy=http://<VPS内网IP>:18080 \
+  https_proxy=http://<VPS内网IP>:18080 \
+  NO_PROXY=localhost,127.0.0.1 \
+  claude "$@"
+}
+```
+
+- 代理变量**大小写都要写**：不同程序认的大小写和优先级不一样，全写最省心。
+- **不要**把代理写进 `~/.claude/settings.json` 的 `env` 块——那会让**所有**会话都吃到这个代理，把你原有的多通道分工（比如某个命令走 Vertex、某个走直连）全污染掉。按启动命令分别设置，才保得住分流。
+
+**第 5 步：桌面版（Electron 应用）**
+
+Claude 桌面版的设置里**没有代理选项**，但它是 Chromium 内核，认启动参数 `--proxy-server`。唯一的坑：App 已经在运行时，再点图标只会唤出旧进程、新参数不生效，**必须先完全退出再启动**。把这个动作做成双击启动器（存为 `~/Desktop/Claude-TS.command`，记得 `chmod +x`）：
+
+```bash
+#!/bin/bash
+PROXY="http://<VPS内网IP>:18080"
+osascript -e 'tell application "Claude" to quit' 2>/dev/null
+for i in $(seq 1 30); do
+  pgrep -x "Claude" >/dev/null || break
+  sleep 0.5
+done
+open -a "Claude" --args --proxy-server="$PROXY"
+```
+
+备选是去改 macOS 的系统代理，但那是全局开关、所有软件都会跟着走，等于砸掉分流，不推荐。
+
+### 12.3 自测四步（缺一不可）
+
+作者的规矩：没自测过的"已完成"不算完成。以下四步全部在你自己的机器上就能复现：
+
+**① 出口 IP 对不对**
+
+```bash
+curl -x http://<VPS内网IP>:18080 https://api.ipify.org
+# 输出应为 <你的VPS公网IP>
+
+curl -x http://<VPS内网IP>:18080 -o /dev/null -w '%{http_code}' https://claude.ai
+curl -x http://<VPS内网IP>:18080 -o /dev/null -w '%{http_code}' https://api.anthropic.com
+# 有状态码（如 403 / 404）即"到达"：裸 curl 没有浏览器请求头，
+# 被对方边缘节点拦或根路径不存在都是正常回应，看的是通不通
+```
+
+**② 反证法（最有说服力的一步）**
+
+```bash
+# 在 VPS 上停掉代理
+sudo systemctl stop sing-box-ts
+# 回到电脑重跑 ① —— 应立刻失败；再 start 后应立刻恢复
+sudo systemctl start sing-box-ts
+```
+
+停不停代理、结果没区别，就说明你的流量根本没走这条路——配置八成指错了地址或账号不在同一个 tailnet（回第 1 步检查）。
+
+**③ 应用侧的实际连接**
+
+桌面版用启动器打开后，在电脑上执行：
+
+```bash
+ps aux | grep proxy-server
+# 应看到 Claude 进程带着 --proxy-server=http://<VPS内网IP>:18080
+
+lsof -nP -iTCP -a -c Claude | grep <VPS内网IP>
+# 应看到若干条指向 <VPS内网IP>:18080 的 ESTABLISHED 连接
+```
+
+**④ 服务端日志对时间**
+
+```bash
+# 在 VPS 上
+tail /var/log/sing-box-ts/access.log
+# 你刚才打开桌面版 / 发起请求的那一分钟，应有来自你电脑内网地址、
+# 目标为 anthropic 相关域名的连接记录，时间能对上
+```
+
+**附加安全自查**：找一台**不在**你 tailnet 里的设备（比如用手机流量关掉 Tailscale），执行 `curl -x http://<你的VPS公网IP>:18080 https://api.ipify.org`——**应该失败**。入口只存在于内网，这是本方案与前两代最本质的不同。
+
+### 12.4 三代方案怎么选
+
+- **已经在用 VLESS+Reality 且稳定**：可以不动，它仍是合格的备用通道（作者自己的 VLESS 也完整保留着）。
+- **设备都是自己的、想要入口隐蔽 + 维护省心**：用本节的方案 C。它对日常维护的要求只剩一条——Tailscale 别退出登录。
+- **WireGuard 直连**：仅作应急备份，不再推荐当主力（原因见顶部状态更新）。
+
+三代方案共用同一个出口 IP、同一套"只让 Claude 走"的分流思想，变的只是路的修法：第一代是自己挖隧道，第二代是穿伪装走公网，第三代是把入口搬进自家内网。理解了这个演进，比记住任何一代的具体配置都长寿。
+
+---
+
+*教程 v2.0，2026-10-21。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
