@@ -518,7 +518,46 @@ cct() {
 
 **第 5 步：桌面版（Electron 应用）**
 
-Claude 桌面版的设置里**没有代理选项**，但它是 Chromium 内核，认启动参数 `--proxy-server`。唯一的坑：App 已经在运行时，再点图标只会唤出旧进程、新参数不生效，**必须先完全退出再启动**。把这个动作做成双击启动器（存为 `~/Desktop/Claude-TS.command`，记得 `chmod +x`）：
+Claude 桌面版的设置里**没有代理选项**，但它是 Chromium 内核，认启动参数 `--proxy-server`。唯一的坑：App 已经在运行时，再点图标只会唤出旧进程、新参数不生效，**必须先完全退出再启动**。不要从 Dock / 启动台直接点 Claude——那样不会带代理参数。
+
+**推荐：Raycast Script Command（日常用这个）**
+
+把下面脚本存到你的 Raycast 脚本目录（作者这边是 `~/Learn/mac/raycast_script/claude.sh`），`chmod +x` 后在 Raycast 里搜 `Claude` 即可一键启动：
+
+```bash
+#!/bin/bash
+
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title Claude
+# @raycast.mode silent
+
+# Optional parameters:
+# @raycast.icon 🧠
+# @raycast.packageName Claude
+
+# Documentation:
+# @raycast.description 完全退出后，用 Tailscale 专线代理启动 Claude 桌面版
+
+PROXY="http://<VPS内网IP>:18080"
+osascript -e 'tell application "Claude" to quit' 2>/dev/null || true
+for i in $(seq 1 30); do
+  pgrep -x "Claude" >/dev/null || break
+  sleep 0.5
+done
+if pgrep -x "Claude" >/dev/null; then
+  pkill -x "Claude" 2>/dev/null || true
+  sleep 1
+fi
+open -a "Claude" --args --proxy-server="$PROXY"
+echo "Claude 已走 Tailscale 专线启动"
+```
+
+若 Raycast 里暂时看不到新脚本：打开 Raycast → Extensions → Script Commands，确认已添加该目录，必要时点 Refresh。
+
+**备选：桌面双击启动器**
+
+不爱用 Raycast 时，仍可把同样逻辑存为 `~/Desktop/Claude-TS.command`（记得 `chmod +x`）后双击。
 
 ```bash
 #!/bin/bash
@@ -531,7 +570,7 @@ done
 open -a "Claude" --args --proxy-server="$PROXY"
 ```
 
-备选是去改 macOS 的系统代理，但那是全局开关、所有软件都会跟着走，等于砸掉分流，不推荐。
+不推荐去改 macOS 的系统代理：那是全局开关，所有软件都会跟着走，等于砸掉分流。
 
 ### 12.3 自测四步（缺一不可）
 
@@ -593,4 +632,4 @@ tail /var/log/sing-box-ts/access.log
 
 ---
 
-*教程 v2.0，2026-10-21。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
+*教程 v2.1，2026-10-22。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
