@@ -5,6 +5,7 @@ export default defineConfig({
   title: "小海的技术笔记",
   description: "Java 开发者的实战教程：VPN、云服务、自动化",
   lang: 'zh-CN',
+  srcExclude: ['public/**'],
   ignoreDeadLinks: [/^http:\/\/localhost/],
   themeConfig: {    nav: [
       { text: '首页', link: '/' },
@@ -22,7 +23,7 @@ export default defineConfig({
             { text: 'VPN / 代理工具科普：六个工具一次讲清', link: '/tutorials/vpn-tools-guide' },
             { text: 'Mac 本地大模型搭建（Ollama + Open WebUI）', link: '/tutorials/ollama-openwebui-setup-guide' },
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
-            { text: 'Claude Code 多账号切换且不丢会话（Mac / Windows）', link: '/tutorials/claude-multi-account-switch' },
+            { text: 'Claude 多账号切换且不丢会话（Desktop / Code）', link: '/tutorials/claude-multi-account-switch' },
           ],
         },
       ],
