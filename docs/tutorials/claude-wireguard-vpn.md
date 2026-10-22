@@ -622,7 +622,136 @@ tail /var/log/sing-box-ts/access.log
 
 **附加安全自查**：找一台**不在**你 tailnet 里的设备（比如用手机流量关掉 Tailscale），执行 `curl -x http://<你的VPS公网IP>:18080 https://api.ipify.org`——**应该失败**。入口只存在于内网，这是本方案与前两代最本质的不同。
 
-### 12.4 三代方案怎么选
+**附加：用流量计数实时确认（Mac / Windows 通用）**
+
+- **看 `tailscale status`**：在 Claude 正在回复时执行，`vps-claude` 那一行会从空闲时的 `-` 变成 `active; ... tx ... rx ...`，且 tx/rx 数字在增长；Claude 没在说话时则回到 `-`。所以要趁它输出时看。
+- **断网测试**：临时断开 Tailscale（菜单栏 / 托盘图标 → Disconnect），Claude 应立刻连不上；重新连接后马上恢复。断了还能用，说明它没走专线。
+- 注意：Tailscale 免费版管理后台**没有按设备的流量统计**（Flow logs 是付费功能），所以本机看 `tailscale status` 是最直接的办法。
+
+### 12.4 Windows 落地
+
+思路和 Mac 完全一样：入网 → CLI 单独启动命令 → 桌面版带 `--proxy-server` 启动 → 一键启动器。下面按作者在 Windows 上实测的顺序来。
+
+**第 1 步：安装 Tailscale，并登录同一个账号**
+
+```powershell
+winget install --id Tailscale.Tailscale -e
+```
+
+装好后点托盘区的 Tailscale 图标登录，**必须和 Mac、VPS 用同一个账号**（原因见 12.2 第 1 步）。然后验证：
+
+```powershell
+tailscale status
+# 列表里应能看到 vps-claude
+
+curl.exe -x http://<VPS内网IP>:18080 https://api.ipify.org
+# 输出应为 <VPS公网IP>
+```
+
+PowerShell 里请写 `curl.exe`，单写 `curl` 会被当成 `Invoke-WebRequest` 的别名。
+
+**第 2 步：Claude Code CLI —— 单独的 `cct` 命令**
+
+新建 `%APPDATA%\npm\cct.cmd`（这个目录通常已在 PATH 里，npm 全局命令就装在这里）：
+
+```bat
+@echo off
+set HTTPS_PROXY=http://<VPS内网IP>:18080
+set HTTP_PROXY=http://<VPS内网IP>:18080
+set NO_PROXY=localhost,127.0.0.1
+claude %*
+```
+
+之后 `cct` 走专线，`claude` 原样不动。和 Mac 一样，不要把代理写进全局配置，按命令区分才能保住分流。
+
+**第 3 步：Claude 桌面版（Microsoft Store / MSIX 应用）**
+
+Windows 版 Claude 桌面是 MSIX 包，安装目录不能直接调用 exe，但系统会给它建一个执行别名：
+
+```powershell
+& "$env:LOCALAPPDATA\Microsoft\WindowsApps\claude-desktop.exe" --proxy-server=http://<VPS内网IP>:18080
+```
+
+坑和 Mac 一样：**必须先完全退出 Claude**（托盘里也要退出），否则只会唤起旧进程、参数不生效。
+
+**第 4 步：一键启动器 —— Raycast for Windows 脚本（推荐）**
+
+把下面脚本存为 `%USERPROFILE%\raycast_script\claude.ps1`：
+
+```powershell
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title Claude
+# @raycast.mode silent
+
+# Optional parameters:
+# @raycast.argument1 { "type": "text", "placeholder": "账号别名（可选，如 @2）", "optional": true }
+
+param([string]$Account = "")
+
+$Proxy = "http://<VPS内网IP>:18080"
+$Exe   = "$env:LOCALAPPDATA\Microsoft\WindowsApps\claude-desktop.exe"
+
+# 1. 先完全退出 Claude，否则新参数不生效
+Get-Process -Name "claude" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
+
+# 2. 代理环境变量（只作用于本次启动的进程）
+$env:HTTPS_PROXY = $Proxy
+$env:HTTP_PROXY  = $Proxy
+$env:NO_PROXY    = "localhost,127.0.0.1"
+
+# 3. 预留：多账号目录（尚未完成，见下文说明）
+if ($Account -ne "") {
+    $alias = $Account.TrimStart("@")
+    $dir = Join-Path $env:USERPROFILE ".claude-accounts\$alias"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+}
+
+# 4. 带代理参数启动桌面版
+Start-Process -FilePath $Exe -ArgumentList "--proxy-server=$Proxy"
+```
+
+Raycast 里的设置：
+
+1. Raycast → Extensions → Script Commands → 添加 `%USERPROFILE%\raycast_script` 目录，点 Refresh。
+2. 把系统自带的 Claude 应用条目设为隐藏，让这个脚本在搜 `Claude` 时排第一，避免误点到不带代理的入口。
+
+关于账号别名参数（如 `@2`）：脚本会创建 `%USERPROFILE%\.claude-accounts\<别名>` 目录，这是给以后用 `CLAUDE_CONFIG_DIR` 做多账号隔离**预留**的，目前还没接上，现在传不传参数效果一样。
+
+**备选：开始菜单 / 桌面快捷方式**
+
+不用 Raycast 时，建一个名为 `Claude.lnk` 的快捷方式放在开始菜单和桌面，目标填：
+
+```text
+powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\<你的用户名>\raycast_script\claude.ps1"
+```
+
+作者之前用过一个「Claude (Tailscale)」快捷方式，已被这个 `Claude.lnk` 取代，删掉旧的即可，以免两个入口混淆。
+
+**踩过的坑：自动更新后代理丢了**
+
+Claude 桌面版自动更新后会**自己重启**，重启出来的进程**不带 `--proxy-server`**。作者实测时它的流量因此改走了本机的系统代理（`127.0.0.1:10808`），完全没经过 Tailscale，表面上却一切正常。对策：**每次更新后用启动脚本重新启动一次**；有疑问就按下面的方法查。
+
+**Windows 自测方法**
+
+```powershell
+# ① Claude 回复时看流量计数：vps-claude 行应显示 active; ... tx/rx（空闲时为 -）
+tailscale status
+
+# ② 进程命令行里有没有 --proxy-server
+Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
+  Select-Object ProcessId, CommandLine | Format-List
+# 应能看到 --proxy-server=http://<VPS内网IP>:18080
+
+# ③ 有没有到专线入口的连接
+Get-NetTCPConnection -RemoteAddress <VPS内网IP> -RemotePort 18080 -State Established
+# 有记录即说明连接确实连到了专线入口
+
+# ④ 断网测试：托盘里断开 Tailscale，Claude 应失败；重新连接后恢复
+```
+
+### 12.5 三代方案怎么选
 
 - **已经在用 VLESS+Reality 且稳定**：可以不动，它仍是合格的备用通道（作者自己的 VLESS 也完整保留着）。
 - **设备都是自己的、想要入口隐蔽 + 维护省心**：用本节的方案 C。它对日常维护的要求只剩一条——Tailscale 别退出登录。
@@ -632,4 +761,4 @@ tail /var/log/sing-box-ts/access.log
 
 ---
 
-*教程 v2.1，2026-10-22。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
+*教程 v2.2，2026-10-22。v2.2 修订：新增第 12.4 节 Windows 落地（Tailscale 安装、`cct` 命令、MSIX 桌面版带代理启动、Raycast for Windows 脚本与快捷方式、自动更新丢代理的坑、Windows 自测方法）；12.3 补充 `tailscale status` 流量计数与断网测试（Mac / Windows 通用）；原 12.4 顺延为 12.5。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
