@@ -8,3 +8,4 @@
 - [VPN / 代理工具科普：Tailscale、WireGuard、V2Ray、Clash、EasyConnect、Shadowsocks](./vpn-tools-guide.md)
 - [Mac 本地大模型搭建（Ollama + Open WebUI）](./ollama-openwebui-setup-guide.md)
 - [Supabase 与 PostgreSQL 入门（MySQL 用户版）](./supabase-postgresql-mysql-guide.md)
+- [Claude Code 多账号切换且不丢会话（Mac / Windows）](./claude-multi-account-switch.md)
