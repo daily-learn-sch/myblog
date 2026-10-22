@@ -203,8 +203,8 @@ Code 会话的 worktree 由三处共同记录：git（`<仓库>/.git/worktrees/`
 
 | 下载 | 说明 |
 |---|---|
-| [SKILL.md（英文版）](/myblog/skills/claude-session-sync/SKILL.md) | 给 AI 用，建议用这个 |
-| [SKILL.cn.md（中文版）](/myblog/skills/claude-session-sync/SKILL.cn.md) | 内容相同，方便自己看 |
+| <a href="/myblog/skills/claude-session-sync/SKILL.md" target="_blank" download>SKILL.md（英文版）</a> | 给 AI 用，建议用这个 |
+| <a href="/myblog/skills/claude-session-sync/SKILL.cn.md" target="_blank" download>SKILL.cn.md（中文版）</a> | 内容相同，方便自己看 |
 
 作者：同事（detached.online），原文与原始下载：[Claude 会话同步](https://detached.online/blog/claude-desktop%E5%88%87%E6%8D%A2%E8%B4%A6%E5%8F%B7%E5%90%8E%E4%BC%9A%E8%AF%9D%E6%B6%88%E5%A4%B1/)（[SKILL.md](https://detached.online/skills/claude-desktop-profile-switch/SKILL.md) / [SKILL.cn.md](https://detached.online/skills/claude-desktop-profile-switch/SKILL.cn.md)），以原文为准。
 
