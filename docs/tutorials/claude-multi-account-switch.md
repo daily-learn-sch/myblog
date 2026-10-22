@@ -199,7 +199,14 @@ Code 会话的 worktree 由三处共同记录：git（`<仓库>/.git/worktrees/`
 
 ### 6.4 懒人做法：把 SKILL 交给 AI
 
-同事文章末尾提供了 `SKILL.md`（英文，给 AI 用）和 `SKILL.cn.md`（中文）。我就是下载后直接丢给 Claude，让它按上面的规则自己完成迁移的。
+同事整理了一份给 AI 用的迁移 SKILL，我就是下载后直接丢给 Claude，让它先只读排查、备份，再自己完成迁移的。本站存了一份原样副本：
+
+| 下载 | 说明 |
+|---|---|
+| [SKILL.md（英文版）](/myblog/skills/claude-session-sync/SKILL.md) | 给 AI 用，建议用这个 |
+| [SKILL.cn.md（中文版）](/myblog/skills/claude-session-sync/SKILL.cn.md) | 内容相同，方便自己看 |
+
+作者：同事（detached.online），原文与原始下载：[Claude 会话同步](https://detached.online/blog/claude-desktop%E5%88%87%E6%8D%A2%E8%B4%A6%E5%8F%B7%E5%90%8E%E4%BC%9A%E8%AF%9D%E6%B6%88%E5%A4%B1/)（[SKILL.md](https://detached.online/skills/claude-desktop-profile-switch/SKILL.md) / [SKILL.cn.md](https://detached.online/skills/claude-desktop-profile-switch/SKILL.cn.md)），以原文为准。
 
 ## 7. 走过的弯路
 
