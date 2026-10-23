@@ -751,7 +751,73 @@ Get-NetTCPConnection -RemoteAddress <VPS内网IP> -RemotePort 18080 -State Estab
 # ④ 断网测试：托盘里断开 Tailscale，Claude 应失败；重新连接后恢复
 ```
 
-### 12.5 三代方案怎么选
+### 12.5 让 Claude 的全部流量都走 Tailscale（2026-10-23 补丁）
+
+**现象**：明明用 Raycast 的「Claude Proxy」带 `--proxy-server` 启动了，Claude 仍偶尔白屏、弹出 try again；关掉 v2ray 后更明显。用 `lsof` 一看，Claude 除了连 `<VPS内网IP>:18080`，还有零星连接连向本机 v2ray 的 `127.0.0.1:10808`。
+
+**原因**：`--proxy-server` 只管主页面。人机验证（hcaptcha、Cloudflare challenge）、支付（stripe），以及错误上报和统计（sentry、statsig、intercom、segment）这些模块，跑在别的会话分区里，读的是 **macOS 系统代理的 PAC 文件**。原来的 PAC 只让 `claude.ai / claude.com / anthropic.com` 走 18080，其余一律走 v2ray。所以 v2ray 一抖或一关，这些请求就失败，页面跟着白屏。
+
+**改法 a：PAC 补全第三方域名**（`~/claude-proxy.pac`，系统设置 → 网络 → 代理 → 自动代理配置里引用的就是它）
+
+```bash
+cp ~/claude-proxy.pac ~/claude-proxy.pac.bak-20261023   # 先备份
+```
+
+```javascript
+function FindProxyForURL(url, host) {
+  var ts = ["claude.ai","claude.com","anthropic.com","claudeusercontent.com",
+    "hcaptcha.com","challenges.cloudflare.com",
+    "stripe.com","stripecdn.com","stripe.network",
+    "sentry.io","statsig.com","statsigapi.net","featuregates.org",
+    "intercom.io","intercomcdn.com","intercomassets.com",
+    "segment.io","segment.com"];
+  for (var i = 0; i < ts.length; i++) {
+    var d = ts[i];
+    if (host == d || dnsDomainIs(host, "." + d)) return "PROXY <VPS内网IP>:18080";
+  }
+  return "PROXY 127.0.0.1:10808";
+}
+```
+
+`host == d || dnsDomainIs(host, "." + d)` 同时匹配主域名和所有子域名，又不会误伤 `xxclaude.ai` 这类名字。Google 的域名（如 `pay.google.com`）**故意不加**，免得把全家 Google 服务都拉进专线。
+
+**改法 c1：启动脚本加代理环境变量**（Raycast 脚本 `claude.sh`，紧跟 `#!/bin/bash` 的第二行）
+
+```bash
+cp claude.sh claude.sh.bak-20261023   # 先备份
+```
+
+```bash
+#!/bin/bash
+export HTTPS_PROXY=http://<VPS内网IP>:18080 HTTP_PROXY=http://<VPS内网IP>:18080 NO_PROXY=localhost,127.0.0.1
+```
+
+这一行让桌面版里内置的 Claude Code、插件等子进程，也通过环境变量走专线。
+
+**生效与验证**：两处都要**用 Raycast 的「Claude Proxy」完全退出后重新启动**才生效。之后检查：
+
+```bash
+# 到 v2ray 的连接应为 0
+lsof -nP -iTCP -sTCP:ESTABLISHED | grep -i claude | grep 10808
+# 到专线入口应有若干条
+lsof -nP -iTCP -sTCP:ESTABLISHED | grep -i claude | grep 18080
+```
+
+刚启动时可能残留一两条 10808 连接，过一会儿会自然消失。作者实测稳定后，10808 为 0，18080 有连接。
+
+**回滚**：把备份拷回去，再重启一次 Claude 即可。
+
+```bash
+cp ~/claude-proxy.pac.bak-20261023 ~/claude-proxy.pac
+cp claude.sh.bak-20261023 claude.sh
+```
+
+**注意**
+- Claude 内置浏览器里打开的普通网站，仍按 PAC 的兜底规则走 v2ray，这是有意的。
+- 两条路出口是同一个 IP，所以这次调整不会让 Claude 看到你的 IP 变化。
+- 排查时作者也翻了 VPS 上代理服务（`sing-box-ts`）的日志：白屏前后没有任何超时或断连，服务一直稳定在线。白屏的根因是部分请求绕到了另一条路，而不是专线本身。以后再白屏，记下时间去 VPS 日志里对，最快定位。
+
+### 12.6 三代方案怎么选
 
 - **已经在用 VLESS+Reality 且稳定**：可以不动，它仍是合格的备用通道（作者自己的 VLESS 也完整保留着）。
 - **设备都是自己的、想要入口隐蔽 + 维护省心**：用本节的方案 C。它对日常维护的要求只剩一条——Tailscale 别退出登录。
@@ -761,4 +827,4 @@ Get-NetTCPConnection -RemoteAddress <VPS内网IP> -RemotePort 18080 -State Estab
 
 ---
 
-*教程 v2.2，2026-10-22。v2.2 修订：新增第 12.4 节 Windows 落地（Tailscale 安装、`cct` 命令、MSIX 桌面版带代理启动、Raycast for Windows 脚本与快捷方式、自动更新丢代理的坑、Windows 自测方法）；12.3 补充 `tailscale status` 流量计数与断网测试（Mac / Windows 通用）；原 12.4 顺延为 12.5。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
+*教程 v2.3，2026-10-23。v2.3 修订：新增第 12.5 节「让 Claude 的全部流量都走 Tailscale」（PAC 补全人机验证/支付/统计等第三方域名、claude.sh 加代理环境变量、验证与回滚）；原 12.5 顺延为 12.6。v2.2，2026-10-22。v2.2 修订：新增第 12.4 节 Windows 落地（Tailscale 安装、`cct` 命令、MSIX 桌面版带代理启动、Raycast for Windows 脚本与快捷方式、自动更新丢代理的坑、Windows 自测方法）；12.3 补充 `tailscale status` 流量计数与断网测试（Mac / Windows 通用）；原 12.4 顺延为 12.5。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
