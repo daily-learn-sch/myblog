@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   base: '/myblog/',
   title: "小海的技术笔记",
   description: "Java 开发者的实战教程：VPN、云服务、自动化",
@@ -25,6 +26,7 @@ export default defineConfig({
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
             { text: 'Claude 多账号切换且不丢会话（Desktop / Code）', link: '/tutorials/claude-multi-account-switch' },
             { text: 'Claude 桌面版 Try again：两轮根因、诊断与改法', link: '/tutorials/claude-desktop-try-again' },
+            { text: '住宅代理、住宅 VPS 与机房 VPS：中转选型与接入', link: '/tutorials/residential-proxy-vps-relay' },
           ],
         },
       ],
@@ -37,4 +39,12 @@ export default defineConfig({
     },
     search: { provider: 'local' },
   },
-})
+  mermaid: {
+    theme: 'base',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true,
+      curve: 'basis',
+    },
+  },
+}))
