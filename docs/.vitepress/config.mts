@@ -24,7 +24,7 @@ export default defineConfig({
             { text: 'Mac 本地大模型搭建（Ollama + Open WebUI）', link: '/tutorials/ollama-openwebui-setup-guide' },
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
             { text: 'Claude 多账号切换且不丢会话（Desktop / Code）', link: '/tutorials/claude-multi-account-switch' },
-            { text: 'Claude 桌面版 Try again：两轮根因与低频率修复', link: '/tutorials/claude-desktop-try-again' },
+            { text: 'Claude 桌面版 Try again：两轮根因、诊断与改法', link: '/tutorials/claude-desktop-try-again' },
           ],
         },
       ],
