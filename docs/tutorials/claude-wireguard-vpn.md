@@ -817,6 +817,9 @@ cp claude.sh.bak-20261023 claude.sh
 - 两条路出口是同一个 IP，所以这次调整不会让 Claude 看到你的 IP 变化。
 - 排查时作者也翻了 VPS 上代理服务（`sing-box-ts`）的日志：白屏前后没有任何超时或断连，服务一直稳定在线。白屏的根因是部分请求绕到了另一条路，而不是专线本身。以后再白屏，记下时间去 VPS 日志里对，最快定位。
 
+
+> **延伸（2026-10-25）**：若 PAC 已按本节补全、`lsof` 显示 Claude→10808 为 0，桌面却仍白屏 `Can't reach / Try again`，多半是 Electron 过不了 Cloudflare（无 `cf_clearance`），而不是代理挂死。完整诊断、低频率修复与禁项见专文：[Claude 桌面版 Try again](./claude-desktop-try-again.md)。
+
 ### 12.6 三代方案怎么选
 
 - **已经在用 VLESS+Reality 且稳定**：可以不动，它仍是合格的备用通道（作者自己的 VLESS 也完整保留着）。
@@ -827,4 +830,4 @@ cp claude.sh.bak-20261023 claude.sh
 
 ---
 
-*教程 v2.3，2026-10-23。v2.3 修订：新增第 12.5 节「让 Claude 的全部流量都走 Tailscale」（PAC 补全人机验证/支付/统计等第三方域名、claude.sh 加代理环境变量、验证与回滚）；原 12.5 顺延为 12.6。v2.2，2026-10-22。v2.2 修订：新增第 12.4 节 Windows 落地（Tailscale 安装、`cct` 命令、MSIX 桌面版带代理启动、Raycast for Windows 脚本与快捷方式、自动更新丢代理的坑、Windows 自测方法）；12.3 补充 `tailscale status` 流量计数与断网测试（Mac / Windows 通用）；原 12.4 顺延为 12.5。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
+*教程 v2.4，2026-10-25。v2.4 修订：链出专文「桌面版 Try again」（Electron/CF 与 §12.5 泄漏两轮根因对比）。原 v2.3，2026-10-23。v2.3 修订：新增第 12.5 节「让 Claude 的全部流量都走 Tailscale」（PAC 补全人机验证/支付/统计等第三方域名、claude.sh 加代理环境变量、验证与回滚）；原 12.5 顺延为 12.6。v2.2，2026-10-22。v2.2 修订：新增第 12.4 节 Windows 落地（Tailscale 安装、`cct` 命令、MSIX 桌面版带代理启动、Raycast for Windows 脚本与快捷方式、自动更新丢代理的坑、Windows 自测方法）；12.3 补充 `tailscale status` 流量计数与断网测试（Mac / Windows 通用）；原 12.4 顺延为 12.5。v2.1 修订：第 12.2 节第 5 步补充 Raycast 搜 `Claude` 一键专线启动（推荐日常用法），桌面 `.command` 降为备选。v2.0 修订：标题更新为三代方案全记录；顶部状态更新（当前推荐改为第 12 节）；新增第 12 节 Tailscale 内网代理（原理、落地五步、自测四步，含"同账号"这个真实踩过的坑）。v1.4 修订：顶部增加状态声明（WireGuard 暂停、VLESS+Reality 为当前主力）；第 10 节 udp2raw 标记作废（四种模式全灭、已从 VPS 移除）；新增第 11 节 VLESS+Reality。v1.3 修订见原文末尾。如有问题欢迎留言。*
