@@ -22,7 +22,6 @@ export default defineConfig({
             { text: 'VPN / 代理工具科普：六个工具一次讲清', link: '/tutorials/vpn-tools-guide' },
             { text: 'Mac 本地大模型搭建（Ollama + Open WebUI）', link: '/tutorials/ollama-openwebui-setup-guide' },
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
-            { text: '从 0 到 1，给自己搭一套 Claude API 中转（备用线）', link: '/tutorials/claude-api-relay-guide' },
           ],
         },
       ],
