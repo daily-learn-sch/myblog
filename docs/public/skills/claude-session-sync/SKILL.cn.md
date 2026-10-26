@@ -1,6 +1,6 @@
 ---
 name: claude-desktop-profile-switch
-description: Windows 上的 Claude Desktop 在第三方 provider（公司网关、Bedrock、Vertex、自定义 API）和 claude.ai 登录之间切换后（哪个方向都算），侧边栏的 Code 会话不见了，或者会话报「Git isn't working: this session's branch is checked out somewhere else in this repository」时使用。先只读排查，再备份，绝不删会话正文和分支。
+description: "Windows 上的 Claude Desktop 在第三方 provider（公司网关、Bedrock、Vertex、自定义 API）和 claude.ai 登录之间切换后（哪个方向都算），侧边栏的 Code 会话不见了，或者会话报「Git isn't working: this session's branch is checked out somewhere else in this repository」时使用。先只读排查，再备份，绝不删会话正文和分支。"
 ---
 
 # Claude Desktop：切换登录后会话不见了 / worktree 冲突
