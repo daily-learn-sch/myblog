@@ -10,4 +10,4 @@
 - [Supabase 与 PostgreSQL 入门（MySQL 用户版）](./supabase-postgresql-mysql-guide.md)
 - [Claude Code 多账号切换且不丢会话（Mac / Windows）](./claude-multi-account-switch.md)
 - [Claude 桌面版白屏「Can't reach / Try again」：两轮根因、诊断与改法](./claude-desktop-try-again.md)
-- [住宅代理、住宅 VPS 与机房 VPS：已有 GCP 中转接入 AdsPower](./residential-proxy-vps-relay.md)
+- [从零把 Claude 接到美国静态住宅 IP](./residential-proxy-vps-relay.md)

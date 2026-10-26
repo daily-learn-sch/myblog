@@ -26,7 +26,7 @@ export default withMermaid(defineConfig({
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
             { text: 'Claude 多账号切换且不丢会话（Desktop / Code）', link: '/tutorials/claude-multi-account-switch' },
             { text: 'Claude 桌面版 Try again：两轮根因、诊断与改法', link: '/tutorials/claude-desktop-try-again' },
-            { text: '住宅代理、住宅 VPS 与机房 VPS：中转选型与接入', link: '/tutorials/residential-proxy-vps-relay' },
+            { text: '从零把 Claude 接到美国静态住宅 IP', link: '/tutorials/residential-proxy-vps-relay' },
           ],
         },
       ],
@@ -41,9 +41,9 @@ export default withMermaid(defineConfig({
   },
   mermaid: {
     theme: 'base',
+    htmlLabels: false,
     flowchart: {
       useMaxWidth: true,
-      htmlLabels: true,
       curve: 'basis',
     },
   },
