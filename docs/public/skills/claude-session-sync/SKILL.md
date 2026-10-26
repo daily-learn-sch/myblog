@@ -1,6 +1,6 @@
 ---
 name: claude-desktop-profile-switch
-description: Use on Windows when Claude Desktop's Code sessions vanished from the sidebar after switching between a third-party provider (company gateway, Bedrock, Vertex, custom API) and a claude.ai login — in either direction — or when a session fails with "Git isn't working: this session's branch is checked out somewhere else in this repository". Inspects read-only first, backs up, never deletes transcripts or branches.
+description: "Use on Windows when Claude Desktop's Code sessions vanished from the sidebar after switching between a third-party provider (company gateway, Bedrock, Vertex, custom API) and a claude.ai login — in either direction — or when a session fails with \"Git isn't working: this session's branch is checked out somewhere else in this repository\". Inspects read-only first, backs up, never deletes transcripts or branches."
 ---
 
 # Claude Desktop: sessions missing / worktree conflict after switching login
