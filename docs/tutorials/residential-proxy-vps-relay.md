@@ -13,10 +13,12 @@ Claude 和前面的 Cloudflare 不看你买了几台机器，只查**连到他�
 
 专线本身（Tailscale、`sing-box-ts`、端口 `18080`）已经在跑，搭法见 [Claude 专线全记录](./claude-wireguard-vpn.md)。桌面曾经白屏，见 [Claude 桌面版 Try again](./claude-desktop-try-again.md)。那篇负责壳层；**从 2026-10-26 起，桌面的出口改到本文的 `18081`。**
 
-::: tip 状态（2026-10-26）
+::: tip 状态（2026-10-26；排障补记 2026-11-02）
 AdsPower 里的 Claude，和桌面 Claude，都走 Mac 上的 `127.0.0.1:18081`。本机 `resip-relay.py`（launchd：`com.xiaohai.resip-relay`）经 Tailscale 送到 VPS 的 `sing-box-resip`，再进 RESIP。目标站看到的是美国静态住宅：Grande，AS7459，Dallas。流量额度 50GB/月。
 
-`18080` 还在，只留给 Chrome 的 Claude Login，出口仍是 VPS 公网 `<VPS公网IP>`（机房）。v2rayN 保持 Enable Tun，系统代理保持 Clear。Wi-Fi 和 Ethernet 的 IPv6 保持关闭。
+`18080` 还在，只留给 Chrome 的 Claude Login，出口仍是 VPS 公网 `<VPS公网IP>`（机房）。Wi-Fi 和 Ethernet 的 IPv6 保持关闭。
+
+**2026-11-01 夜间排障结论**：AdsPower 环境应**直连** `18081`，全局「系统代理」保持关，**不要**再把 `10808` 叠进 ProxyChain；用 AdsPower **不依赖** v2rayN TUN。中继曾因文件句柄耗尽挂掉、以及「只看 curl / 页面 title 就宣布修好」的假阳性——完整复盘见 [AdsPower 住宅出口排障](./adspower-resip-proxy-debug.md)。日常 v2rayN 仍可按习惯开 TUN 或系统代理，那是科学上网自己的事，与 AdsPower 住宅链解耦。
 :::
 
 ::: danger 公开笔记里不要留下的东西

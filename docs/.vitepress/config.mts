@@ -1,10 +1,12 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   base: '/myblog/',
   title: "小海的技术笔记",
   description: "Java 开发者的实战教程：VPN、云服务、自动化",
   lang: 'zh-CN',
+  srcExclude: ['public/**'],
   ignoreDeadLinks: [/^http:\/\/localhost/],
   themeConfig: {    nav: [
       { text: '首页', link: '/' },
@@ -23,6 +25,10 @@ export default defineConfig({
             { text: 'Mac 本地大模型搭建（Ollama + Open WebUI）', link: '/tutorials/ollama-openwebui-setup-guide' },
             { text: 'Supabase 与 PostgreSQL 入门（MySQL 用户版）', link: '/tutorials/supabase-postgresql-mysql-guide' },
             { text: '从 0 到 1，给自己搭一套 Claude API 中转（备用线）', link: '/tutorials/claude-api-relay-guide' },
+            { text: 'Claude 多账号切换且不丢会话（Desktop / Code）', link: '/tutorials/claude-multi-account-switch' },
+            { text: 'Claude 桌面版 Try again：两轮根因、诊断与改法', link: '/tutorials/claude-desktop-try-again' },
+            { text: '从零把 Claude 接到美国静态住宅 IP', link: '/tutorials/residential-proxy-vps-relay' },
+            { text: 'AdsPower 住宅出口 IP 变 ---：排障与验收', link: '/tutorials/adspower-resip-proxy-debug' },
           ],
         },
       ],
@@ -35,4 +41,12 @@ export default defineConfig({
     },
     search: { provider: 'local' },
   },
-})
+  mermaid: {
+    theme: 'base',
+    htmlLabels: false,
+    flowchart: {
+      useMaxWidth: true,
+      curve: 'basis',
+    },
+  },
+}))

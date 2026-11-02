@@ -11,3 +11,4 @@
 - [Claude Code 多账号切换且不丢会话（Mac / Windows）](./claude-multi-account-switch.md)
 - [Claude 桌面版白屏「Can't reach / Try again」：两轮根因、诊断与改法](./claude-desktop-try-again.md)
 - [从零把 Claude 接到美国静态住宅 IP](./residential-proxy-vps-relay.md)
+- [AdsPower 住宅出口 IP 变 `---`：句柄耗尽、系统代理叠层与验收标准](./adspower-resip-proxy-debug.md)
