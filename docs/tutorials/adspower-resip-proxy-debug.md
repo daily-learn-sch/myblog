@@ -268,4 +268,113 @@ lsof -nP -iTCP | grep -i sunbrowser
 | [Claude 桌面版 Try again](./claude-desktop-try-again.md) | Electron / Cloudflare 白屏，和「代理链不通」不是同一类病 |
 | 本文 | AdsPower 住宅环境从 `---` 到直连 `18081` 的排障与验收纪律 |
 
+## 12. 手动从零搭建这条链路
+
+这一节写给以后的自己：不靠助手，自己从头把 `127.0.0.1:18081 → Tailscale → sing-box-resip → RESIP` 搭起来。更完整的选型和购买过程看 [住宅代理中转](./residential-proxy-vps-relay.md)。
+
+::: warning VPS 部分按文档还原，配置路径/代理商参数为示例
+写这一节时没有登录 VPS 核对现网配置。VPS 上的文件路径、RESIP 的地址、端口、协议（socks5 还是 http）都是示例，请以自己机器和代理商后台为准。Mac 端的内容是照现有文件写的。
+:::
+
+### 12.1 VPS：Tailscale + sing-box-resip
+
+1. 装 Tailscale 并入网（和 Mac **同一个账号**）：
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+tailscale ip -4        # 记下 <VPS的Tailscale IP>
+```
+
+2. sing-box 单独起一个实例，不要和机房专线 `sing-box-ts` 混用同一份配置。示例 `/etc/sing-box-resip/config.json`：
+
+```json
+{
+  "log": { "level": "info", "output": "/var/log/sing-box-resip/access.log", "timestamp": true },
+  "inbounds": [
+    { "type": "mixed", "tag": "resip-in", "listen": "<VPS的Tailscale IP>", "listen_port": 18081 }
+  ],
+  "outbounds": [
+    { "type": "socks", "tag": "resip", "server": "<RESIP_HOST>", "server_port": 0,
+      "version": "5", "username": "<RESIP_USER>", "password": "<RESIP_PASS>" },
+    { "type": "direct", "tag": "direct" }
+  ],
+  "route": { "final": "resip" }
+}
+```
+
+- `listen` 只写 Tailscale 地址，**不能写 `0.0.0.0`**。
+- `server_port` 填代理商给的端口。如果代理商给的是 HTTP 代理，把 `type` 改成 `http`。
+- 要固定某个城市或某个出口 IP，一般要在用户名里带 sticky session 或地区参数，写法看代理商文档。
+
+3. systemd `/etc/systemd/system/sing-box-resip.service`：
+
+```ini
+[Unit]
+Description=sing-box residential proxy (tailnet only)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box-resip/config.json
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo mkdir -p /var/log/sing-box-resip
+sing-box check -c /etc/sing-box-resip/config.json
+sudo systemctl daemon-reload && sudo systemctl enable --now sing-box-resip
+ss -tlnp | grep 18081   # 监听地址必须是 <VPS的Tailscale IP>
+```
+
+4. 防火墙：云厂商安全组**不要**为 18081 开入站。流量从 `tailscale0` 进来，不走公网。想再加一层，可以用 `sudo ufw allow in on tailscale0 to any port 18081`。
+
+### 12.2 Mac：本地 relay + LaunchAgent
+
+**为什么不让 AdsPower 直接填 `<VPS的Tailscale IP>:18081`？** 原始笔记里写的理由是：relay 直连 Tailscale 地址，不走系统代理，不受 v2rayN 设置影响。另外，AdsPower、桌面 Claude、v2rayN 节点都填同一个 `127.0.0.1:18081`，VPS 换了只需要改 relay 一处。直接填 Tailscale 地址会不会出问题，作者没有单独测过。
+
+1. 脚本 `~/.local/bin/resip-relay.py`：用 asyncio 做纯 TCP 转发，`127.0.0.1:18081 → <VPS的Tailscale IP>:18081`，自己不解析代理协议。要点：
+   - 连上游超时 12s
+   - `Semaphore(256)` 限并发
+   - 两端连接在 `finally` 里必关
+   - 启动时把 `RLIMIT_NOFILE` 提到 65536（教训见 §5）
+2. LaunchAgent `~/Library/LaunchAgents/com.xiaohai.resip-relay.plist`：
+   - 用 `/opt/homebrew/bin/python3` 执行脚本
+   - `RunAtLoad` 和 `KeepAlive` 都是 true，`ThrottleInterval` 设 5
+   - `Soft/HardResourceLimits.NumberOfFiles` 都设 65536
+   - 日志写到 `~/Library/Logs/resip/relay.{out,err}`
+3. 加载与确认：
+
+```bash
+mkdir -p ~/Library/Logs/resip
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.xiaohai.resip-relay.plist
+launchctl kickstart -k gui/$(id -u)/com.xiaohai.resip-relay   # 改脚本后重启
+lsof -nP -iTCP:18081 -sTCP:LISTEN
+```
+
+4. 可选的 `18082`：用 ToolMerge 跑 `-local socks5://127.0.0.1:18082 -target http://127.0.0.1:18081`，给只支持 SOCKS5 的软件用。
+5. 可选的 v2rayN 节点：新建 HTTP 类型节点，地址填 `127.0.0.1:18081`。
+
+### 12.3 AdsPower
+
+- 环境代理选 **HTTP**，地址 `127.0.0.1`，端口 `18081`，不填账号密码。
+- 全局「系统代理」**保持关闭**，改完要彻底退出 AdsPower 再打开（原因见 §6）。
+
+### 12.4 由内到外验证
+
+1. VPS 上：`curl -x http://<VPS的Tailscale IP>:18081 https://api.ipify.org`，结果应为 `<住宅出口IP>`。
+2. Mac 上：`curl -x http://127.0.0.1:18081 https://api.ipify.org`，结果应为 `<住宅出口IP>`。这一步只是辅证。
+3. **以 SunBrowser 为准**：Google 能出搜索框，ipify 正文等于 `<住宅出口IP>`，按 §9.3 的口令逐条过。
+
+### 12.5 搭完最常踩的坑
+
+- `10808` 叠层 → §6
+- `Errno 24` → §5，先看 `~/Library/Logs/resip/relay.err`
+- IPv6 没关 → 真实地址可能绕过代理
+- Tailscale 掉线 → 页面一直打不开，先跑 `tailscale status`
+
 更新于 2026-11-02（Asia/Shanghai）。事实来源是 2026-11-01 当晚的中继日志、AdsPower 代理日志、CDP 截图与配置变更记录；公开稿已去掉账密、token 与真实地址数字。
