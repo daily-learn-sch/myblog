@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
 
 export default withMermaid(defineConfig({
-  base: '/myblog/',
+  base: '/',
   title: "小海的技术笔记",
   description: "Java 开发者的实战教程：VPN、云服务、自动化",
   lang: 'zh-CN',
